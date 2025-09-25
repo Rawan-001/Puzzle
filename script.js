@@ -14,56 +14,87 @@ let offsetX = 0;
 let offsetY = 0;
 let containerRectCache = null;
 
+// دالة ترجع الاحداث بشكل صحيح (جوال/كمبيوتر)
+function getEventX(e) {
+    return e.pageX || e.clientX;
+}
+function getEventY(e) {
+    return e.pageY || e.clientY;
+}
+
 function resetPiecesPosition() {
     containerRectCache = container.getBoundingClientRect(); 
 
-    const containerCenterX = containerRectCache.width / 2;
-    const containerCenterY = containerRectCache.height / 2;
-    
-    // مدى التباعد العشوائي (يضمن توزيعها حول المنتصف)
-    const jitterRange = 150; 
     const containerWidth = containerRectCache.width;
     const containerHeight = containerRectCache.height;
 
-    draggables.forEach(img => {
-        img.style.position = 'absolute';
+    if (window.innerWidth < 600) {
+        // 📱 توزيع عامودي للجوال
+        let topOffset = 20;
+        draggables.forEach(img => {
+            img.style.position = 'absolute';
 
-        const imgWidth = img.offsetWidth;
-        const imgHeight = img.offsetHeight;
+            const imgWidth = img.offsetWidth;
+            const imgHeight = img.offsetHeight;
 
-        if (imgWidth === 0 || imgHeight === 0) {
-             return; 
-        }
+            let finalX = (containerWidth - imgWidth) / 2; // وسّط القطعة أفقياً
+            let finalY = topOffset;
 
-        const baseCenterX = containerCenterX - (imgWidth / 2);
-        const baseCenterY = containerCenterY - (imgHeight / 2);
+            // نزّل القطعة تحت اللي قبلها
+            topOffset += imgHeight + 15; 
 
-        const jitterX = (Math.random() - 0.5) * jitterRange; 
-        const jitterY = (Math.random() - 0.5) * jitterRange; 
+            img.style.transform = `translate(${finalX}px, ${finalY}px)`;
 
-        let finalX = baseCenterX + jitterX;
-        let finalY = baseCenterY + jitterY;
+            if (img.parentElement !== container) {
+                container.appendChild(img);
+            }
+        });
+    } else {
+        // 💻 توزيع عشوائي للابتوب/آيباد
+        const containerCenterX = containerRectCache.width / 2;
+        const containerCenterY = containerRectCache.height / 2;
+        const jitterRange = 150;
 
-        // التقييد الذكي داخل الحدود (يمنع الاختفاء عند التحميل)
-        finalX = Math.max(0, finalX);
-        finalY = Math.max(0, finalY);
+        draggables.forEach(img => {
+            img.style.position = 'absolute';
 
-        finalX = Math.min(finalX, containerWidth - imgWidth);
-        finalY = Math.min(finalY, containerHeight - imgHeight);
+            const imgWidth = img.offsetWidth;
+            const imgHeight = img.offsetHeight;
+            if (imgWidth === 0 || imgHeight === 0) return;
 
-        img.style.transform = `translate3d(${finalX}px, ${finalY}px, 0)`;
-        
-        if (img.parentElement !== container) {
-            container.appendChild(img);
-        }
-    });
+            const baseCenterX = containerCenterX - (imgWidth / 2);
+            const baseCenterY = containerCenterY - (imgHeight / 2);
+
+            const jitterX = (Math.random() - 0.5) * jitterRange; 
+            const jitterY = (Math.random() - 0.5) * jitterRange; 
+
+            let finalX = Math.max(0, Math.min(baseCenterX + jitterX, containerWidth - imgWidth));
+            let finalY = Math.max(0, Math.min(baseCenterY + jitterY, containerHeight - imgHeight));
+
+            img.style.transform = `translate(${finalX}px, ${finalY}px)`;
+
+            if (img.parentElement !== container) {
+                container.appendChild(img);
+            }
+        });
+    }
 }
 
-// إعادة ضبط الموضع عند التحميل وعند تغيير حجم الشاشة (للتجاوب)
+// انتظر الصور تحمل
+window.addEventListener('load', () => {
+    Promise.all(Array.from(draggables).map(img => {
+        return new Promise(resolve => {
+            if (img.complete) resolve();
+            else img.onload = resolve;
+        });
+    })).then(resetPiecesPosition);
+});
+
+window.addEventListener('resize', resetPiecesPosition);
+
 window.addEventListener('load', resetPiecesPosition); 
 window.addEventListener('resize', resetPiecesPosition); 
 
-// ربط زر إعادة التعيين
 if (resetBtn) {
     resetBtn.addEventListener('click', resetPiecesPosition);
 }
@@ -78,11 +109,11 @@ draggables.forEach(item => {
         containerRectCache = container.getBoundingClientRect(); 
 
         const elementRect = item.getBoundingClientRect();
-        offsetX = e.clientX - elementRect.left;
-        offsetY = e.clientY - elementRect.top;
+        offsetX = getEventX(e) - elementRect.left;
+        offsetY = getEventY(e) - elementRect.top;
         
-        initialX = e.clientX;
-        initialY = e.clientY;
+        initialX = getEventX(e);
+        initialY = getEventY(e);
 
         const transformValue = window.getComputedStyle(selected).transform;
         const matrix = new DOMMatrixReadOnly(transformValue);
@@ -102,8 +133,7 @@ function scheduleUpdate() {
         rafId = null;
         if (!selected || pendingX === null || pendingY === null) return;
         
-        // الحركة الحرة التامة
-        selected.style.transform = `translate3d(${pendingX}px, ${pendingY}px, 0)`;
+        selected.style.transform = `translate(${pendingX}px, ${pendingY}px)`;
     });
 }
 
@@ -111,8 +141,8 @@ document.addEventListener('pointermove', e => {
     if (selected) e.preventDefault();
     if (!selected) return;
     
-    const deltaX = e.clientX - initialX;
-    const deltaY = e.clientY - initialY;
+    const deltaX = getEventX(e) - initialX;
+    const deltaY = getEventY(e) - initialY;
     
     const x = transformX + deltaX;
     const y = transformY + deltaY;

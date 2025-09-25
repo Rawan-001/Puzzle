@@ -5,6 +5,8 @@ body {
     align-items: center;
     margin: 1vh 0;
     background-color: #f4f4f4;
+    overscroll-behavior: none; /* منع سحب الصفحة */
+    touch-action: none;        /* منع تحريك الشاشة */
 }
 
 #site-header {
@@ -16,7 +18,6 @@ body {
     align-items: center;
     
     gap: 15px; 
-    /* الهيدر النحيف: حشو رأسي منخفض */
     padding: 0.3vw 2vw; 
     background: #ffffff;
     border: 1px solid #e5e5e5;
@@ -25,7 +26,6 @@ body {
     margin-bottom: 1vh; 
 }
 
-/* 1. العنوان (خريطة البزل) */
 #site-header h1 {
     margin: 0;
     font-size: clamp(1.2rem, 3vw, 1.8rem); 
@@ -34,7 +34,6 @@ body {
     flex-grow: 0;
 }
 
-/* 2. الشعار الأخضر (.logo) - التوسيط الفعلي */
 .logo {
     display: flex;
     align-items: center; 
@@ -43,7 +42,6 @@ body {
     order: 2; 
 }
 
-/* 3. الشعار القديم (.logo-right) - اليمين */
 .logo-right {
     display: flex;
     align-items: center; 
@@ -52,50 +50,44 @@ body {
     flex-grow: 0;
 }
 
-/* 4. تطبيق التكبير البصري (Scale) على صور الشعار */
 #site-GreenLogo, #site-logo {
-    /* الحجم الأساسي الذي يحدد ارتفاع الهيدر (قيمة نحيفة) */
     width: 15vh;
     height: 10vh;
     
-    /* *** التكبير البصري دون زيادة مساحة التخطيط (Layout Space) *** */
     transform: scale(1.5); 
-    transform-origin: center; /* التأكد من التكبير حول المركز */
+    transform-origin: center; 
     
     object-fit: contain; 
     display: block; 
 }
 
-/* ... بقية الأنماط (شريط الأدوات، قطع البزل) تبقى كما هي ... */
 #toolbar {
     display: flex;
     gap: 12px;
     align-items: center;
     order: 4; 
-    margin-top: 15px; /* إضافة هامش علوي لضمان ظهوره أسفل الهيدر */
+    margin-top: 15px; 
 }
 
 #toolbar button {
-    /* *** الأنماط الجديدة لزر أكثر جاذبية *** */
-    padding: 10px 18px; /* تكبير حجم الزر */
-    border: 2px solid #4c9b4c; /* حدود خضراء داكنة */
-    background: #186218; /* خلفية خضراء فاتحة */
-    color: white; /* نص أبيض */
-    font-size: 1.1rem; /* تكبير الخط */
+    padding: 10px 18px; 
+    border: 2px solid #4c9b4c; 
+    background: #186218; 
+    color: white; 
+    font-size: 1.1rem; 
     font-weight: bold;
     border-radius: 8px;
     cursor: pointer;
-    transition: background 0.2s ease, transform 0.1s ease; /* تأثيرات سلسة */
+    transition: background 0.2s ease, transform 0.1s ease; 
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 #toolbar button:hover {
-    background: #61ac61; /* تغيير اللون للخلفية عند التمرير */
-    transform: translateY(-1px); /* رفع الزر قليلاً */
+    background: #61ac61; 
+    transform: translateY(-1px); 
     box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* أنماط مساحة العمل وقطع البزل */
 #workspace {
     display: flex;
     flex-direction: column;
@@ -103,7 +95,6 @@ body {
     width: 98%; 
     max-width: 1200px; 
 }
-
 #puzzle-container {
     width: 100%; 
     height: 85vh; 
@@ -112,13 +103,18 @@ body {
     border: 3px dashed #a0a0a0;
     background-color: #e8e8e8;
     position: relative; 
+    
+    /* ******** المفتاح لمنع التحديث على جميع الأنظمة ******** */
     overflow: visible; 
+    touch-action: none; /* يمنع جميع إيماءات المتصفح الافتراضية (مثل السحب للتحديث) */
+    overscroll-behavior-y: contain; /* يمنع انتقال التمرير إلى أعلى/أسفل الصفحة */
+    /* ****************************************************** */
+    
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     flex-grow: 1; 
     flex-shrink: 0;
     z-index: 2; 
 }
-
 .draggable {
     position: absolute; 
     will-change: transform; 
@@ -127,13 +123,21 @@ body {
     z-index: 10; 
     top: 0;
     left: 0;
-    touch-action: none; 
+    touch-action: none;   
     user-select: none; 
     -webkit-user-drag: none; 
-    
-    width: 25%; 
+    pointer-events: auto;
+
+    width: clamp(60px, 20vw, 180px);  /* يتأقلم مع حجم الشاشة */
     height: auto; 
-    max-width: 300px; 
+}
+
+/* في الجوال نخليها عمودي */
+@media (max-width: 768px) {
+  #puzzle-container {
+    flex-direction: column;
+    align-items: center;
+  }
 }
 
 .draggable.dragging {
@@ -141,7 +145,6 @@ body {
     z-index: 100; 
 }
 
-/* تحسينات للشاشات الصغيرة */
 @media (max-width: 600px) {
     #site-header {
         flex-direction: column; 
