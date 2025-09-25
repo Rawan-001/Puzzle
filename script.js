@@ -1,6 +1,7 @@
 const draggables = document.querySelectorAll('.draggable');
 const container = document.getElementById('puzzle-container');
 const resetBtn = document.getElementById('resetBtn');
+const STORAGE_KEY = 'puzzle_pieces_state';
 
 let selected = null;
 let initialX = 0;   
@@ -14,90 +15,115 @@ let offsetX = 0;
 let offsetY = 0;
 let containerRectCache = null;
 
-// دالة ترجع الاحداث بشكل صحيح (جوال/كمبيوتر)
-function getEventX(e) {
-    return e.pageX || e.clientX;
-}
-function getEventY(e) {
-    return e.pageY || e.clientY;
+// =======================================================
+// وظيفة حفظ موضع القطع في المتصفح
+// =======================================================
+function savePiecePositions() {
+    const positions = {};
+    draggables.forEach(img => {
+        const transform = window.getComputedStyle(img).transform;
+        const matrix = new DOMMatrixReadOnly(transform);
+        positions[img.id] = { x: matrix.m41, y: matrix.m42 };
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
 }
 
-function resetPiecesPosition() {
+// =======================================================
+// وظيفة تحميل موضع القطع من المتصفح
+// =======================================================
+function loadPiecePositions() {
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    if (savedState) {
+        const positions = JSON.parse(savedState);
+        draggables.forEach(img => {
+            const pos = positions[img.id];
+            if (pos) {
+                img.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+            }
+        });
+        return true; // تم التحميل
+    }
+    return false; // لم يتم العثور على حالة
+}
+
+// =======================================================
+// وظيفة التوزيع الأولي للقطع (عندما لا توجد حالة محفوظة)
+// =======================================================
+function distributePiecesRandomly() {
     containerRectCache = container.getBoundingClientRect(); 
 
+    const containerCenterX = containerRectCache.width / 2;
+    const containerCenterY = containerRectCache.height / 2;
+    
+    const jitterRange = 150; 
     const containerWidth = containerRectCache.width;
     const containerHeight = containerRectCache.height;
 
-    if (window.innerWidth < 600) {
-        // 📱 توزيع عامودي للجوال
-        let topOffset = 20;
-        draggables.forEach(img => {
-            img.style.position = 'absolute';
+    draggables.forEach(img => {
+        // تأكد من وجود id للقطعة لحفظها (مهم جداً!)
+        if (!img.id) {
+            console.error("Piece must have an ID for saving state.");
+            return;
+        }
 
-            const imgWidth = img.offsetWidth;
-            const imgHeight = img.offsetHeight;
+        img.style.position = 'absolute';
 
-            let finalX = (containerWidth - imgWidth) / 2; // وسّط القطعة أفقياً
-            let finalY = topOffset;
+        const imgWidth = img.offsetWidth;
+        const imgHeight = img.offsetHeight;
 
-            // نزّل القطعة تحت اللي قبلها
-            topOffset += imgHeight + 15; 
+        if (imgWidth === 0 || imgHeight === 0) { return; }
 
-            img.style.transform = `translate(${finalX}px, ${finalY}px)`;
+        const baseCenterX = containerCenterX - (imgWidth / 2);
+        const baseCenterY = containerCenterY - (imgHeight / 2);
 
-            if (img.parentElement !== container) {
-                container.appendChild(img);
-            }
-        });
-    } else {
-        // 💻 توزيع عشوائي للابتوب/آيباد
-        const containerCenterX = containerRectCache.width / 2;
-        const containerCenterY = containerRectCache.height / 2;
-        const jitterRange = 150;
+        const jitterX = (Math.random() - 0.5) * jitterRange; 
+        const jitterY = (Math.random() - 0.5) * jitterRange; 
 
-        draggables.forEach(img => {
-            img.style.position = 'absolute';
+        let finalX = baseCenterX + jitterX;
+        let finalY = baseCenterY + jitterY;
 
-            const imgWidth = img.offsetWidth;
-            const imgHeight = img.offsetHeight;
-            if (imgWidth === 0 || imgHeight === 0) return;
+        // التقييد الذكي داخل الحدود (يمنع الاختفاء عند التحميل)
+        finalX = Math.max(0, finalX);
+        finalY = Math.max(0, finalY);
+        finalX = Math.min(finalX, containerWidth - imgWidth);
+        finalY = Math.min(finalY, containerHeight - imgHeight);
 
-            const baseCenterX = containerCenterX - (imgWidth / 2);
-            const baseCenterY = containerCenterY - (imgHeight / 2);
+        img.style.transform = `translate3d(${finalX}px, ${finalY}px, 0)`;
+        
+        if (img.parentElement !== container) {
+            container.appendChild(img);
+        }
+    });
+}
 
-            const jitterX = (Math.random() - 0.5) * jitterRange; 
-            const jitterY = (Math.random() - 0.5) * jitterRange; 
+// =======================================================
+// منطق التحميل والتشغيل
+// =======================================================
+function initializePuzzle() {
+    // 1. محاولة تحميل المواقع المحفوظة
+    const loaded = loadPiecePositions();
 
-            let finalX = Math.max(0, Math.min(baseCenterX + jitterX, containerWidth - imgWidth));
-            let finalY = Math.max(0, Math.min(baseCenterY + jitterY, containerHeight - imgHeight));
-
-            img.style.transform = `translate(${finalX}px, ${finalY}px)`;
-
-            if (img.parentElement !== container) {
-                container.appendChild(img);
-            }
-        });
+    // 2. إذا لم يتم تحميل أي شيء، قم بالتوزيع الأولي
+    if (!loaded) {
+        distributePiecesRandomly();
     }
 }
 
-// انتظر الصور تحمل
-window.addEventListener('load', () => {
-    Promise.all(Array.from(draggables).map(img => {
-        return new Promise(resolve => {
-            if (img.complete) resolve();
-            else img.onload = resolve;
-        });
-    })).then(resetPiecesPosition);
-});
+// تشغيل اللغز عند تحميل النافذة
+window.addEventListener('load', initializePuzzle); 
 
-window.addEventListener('resize', resetPiecesPosition);
-
-window.addEventListener('load', resetPiecesPosition); 
-window.addEventListener('resize', resetPiecesPosition); 
-
+// ربط زر إعادة التعيين: يحذف الجلسة ويعيد التوزيع
 if (resetBtn) {
-    resetBtn.addEventListener('click', resetPiecesPosition);
+    resetBtn.addEventListener('click', () => {
+        localStorage.removeItem(STORAGE_KEY);
+        distributePiecesRandomly();
+    });
 }
+
+// =======================================================
+// منطق السحب والإفلات
+// =======================================================
+window.addEventListener('resize', initializePuzzle); // للتجاوب مع تغيير حجم الشاشة
 
 draggables.forEach(item => {
     item.setAttribute('draggable', 'false');
@@ -109,11 +135,11 @@ draggables.forEach(item => {
         containerRectCache = container.getBoundingClientRect(); 
 
         const elementRect = item.getBoundingClientRect();
-        offsetX = getEventX(e) - elementRect.left;
-        offsetY = getEventY(e) - elementRect.top;
+        offsetX = e.clientX - elementRect.left;
+        offsetY = e.clientY - elementRect.top;
         
-        initialX = getEventX(e);
-        initialY = getEventY(e);
+        initialX = e.clientX;
+        initialY = e.clientY;
 
         const transformValue = window.getComputedStyle(selected).transform;
         const matrix = new DOMMatrixReadOnly(transformValue);
@@ -133,7 +159,7 @@ function scheduleUpdate() {
         rafId = null;
         if (!selected || pendingX === null || pendingY === null) return;
         
-        selected.style.transform = `translate(${pendingX}px, ${pendingY}px)`;
+        selected.style.transform = `translate3d(${pendingX}px, ${pendingY}px, 0)`;
     });
 }
 
@@ -141,8 +167,8 @@ document.addEventListener('pointermove', e => {
     if (selected) e.preventDefault();
     if (!selected) return;
     
-    const deltaX = getEventX(e) - initialX;
-    const deltaY = getEventY(e) - initialY;
+    const deltaX = e.clientX - initialX;
+    const deltaY = e.clientY - initialY;
     
     const x = transformX + deltaX;
     const y = transformY + deltaY;
@@ -157,6 +183,9 @@ document.addEventListener('pointerup', e => {
     if (selected) {
         e.preventDefault();
         
+        // حفظ الموضع الجديد عند الإفلات
+        savePiecePositions(); 
+
         const transformValue = window.getComputedStyle(selected).transform;
         const matrix = new DOMMatrixReadOnly(transformValue);
         transformX = matrix.m41; 
